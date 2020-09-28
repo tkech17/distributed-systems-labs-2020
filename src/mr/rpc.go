@@ -7,6 +7,7 @@ package mr
 //
 
 import "os"
+import "../mr/commons/task"
 import "strconv"
 
 //
@@ -14,16 +15,27 @@ import "strconv"
 // and reply for an RPC.
 //
 
-type ExampleArgs struct {
-	X int
+type RequestTask struct {
 }
 
-type ExampleReply struct {
-	Y int
+type RequestTaskReplay struct {
+	Task task.Task
 }
+
+type UpdateMapTask struct {
+	TaskId         string
+	LastTaskResult []string
+}
+
+type UpdateMapTaskReplay struct{}
+
+type UpdateReduceTask struct {
+	TaskId string
+}
+
+type UpdateReduceTaskReplay struct{}
 
 // Add your RPC definitions here.
-
 
 // Cook up a unique-ish UNIX-domain socket name
 // in /var/tmp, for the master.

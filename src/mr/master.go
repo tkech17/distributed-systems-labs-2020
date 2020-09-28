@@ -1,34 +1,21 @@
 package mr
 
-import "log"
+import (
+	"fmt"
+	"log"
+)
 import "net"
 import "os"
+import "../mr/commons/task"
 import "net/rpc"
 import "net/http"
 
-
 type Master struct {
-	// Your definitions here.
-
+	taskService *task.TasksService
 }
 
-// Your code here -- RPC handlers for the worker to call.
-
-//
-// an example RPC handler.
-//
-// the RPC argument and reply types are defined in rpc.go.
-//
-func (m *Master) Example(args *ExampleArgs, reply *ExampleReply) error {
-	reply.Y = args.X + 1
-	return nil
-}
-
-
-//
-// start a thread that listens for RPCs from worker.go
-//
 func (m *Master) server() {
+	fmt.Println("Registering Master Server")
 	rpc.Register(m)
 	rpc.HandleHTTP()
 	//l, e := net.Listen("tcp", ":1234")
@@ -46,12 +33,7 @@ func (m *Master) server() {
 // if the entire job has finished.
 //
 func (m *Master) Done() bool {
-	ret := false
-
-	// Your code here.
-
-
-	return ret
+	return m.taskService.IsReduceTaskDone()
 }
 
 //
@@ -60,11 +42,37 @@ func (m *Master) Done() bool {
 // nReduce is the number of reduce tasks to use.
 //
 func MakeMaster(files []string, nReduce int) *Master {
-	m := Master{}
-
-	// Your code here.
-
+	fmt.Printf("FileNames[%v]\n", files)
+	m := Master{
+		taskService: task.NewTaskService(files, nReduce),
+	}
 
 	m.server()
+
 	return &m
+}
+
+func (m *Master) GetTask(req *RequestTask, resp *RequestTaskReplay) error {
+	fmt.Println("Calling Master.GetTask")
+	tsk := m.taskService.GetTask()
+
+	fmt.Printf("Task State Is [%v][%v] \n", tsk.TaskId, tsk.State)
+
+	resp.Task = tsk
+
+	return nil
+}
+
+func (m *Master) UpdateMapTask(req *UpdateMapTask, resp *UpdateMapTaskReplay) error {
+	fmt.Println("Calling Master.UpdateMapTask")
+	m.taskService.UpdateMapTask(req.TaskId, req.LastTaskResult)
+
+	return nil
+}
+
+func (m *Master) UpdateReduceTask(req *UpdateReduceTask, resp *UpdateReduceTaskReplay) error {
+	fmt.Println("Calling Master.UpdateMapTask")
+	m.taskService.UpdateReduceTask(req.TaskId)
+
+	return nil
 }
