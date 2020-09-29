@@ -12,14 +12,14 @@ import (
 const taskDoingDurationSecs = 10
 
 type TasksService struct {
-	tasks     []Task
+	tasks     []*Task
 	doneTasks int
 	mutex     *sync.Mutex
 	doOnce    *sync.Once
 }
 
 func NewTaskService(mapFileNamesToProcess []string, nReduceTasks int) *TasksService {
-	var tasks []Task = createMapTasks(mapFileNamesToProcess, nReduceTasks)
+	var tasks []*Task = createMapTasks(mapFileNamesToProcess, nReduceTasks)
 
 	return &TasksService{
 		tasks:  tasks,
@@ -28,14 +28,14 @@ func NewTaskService(mapFileNamesToProcess []string, nReduceTasks int) *TasksServ
 	}
 }
 
-func createMapTasks(fileNamesToProcess []string, nReduceTasks int) []Task {
+func createMapTasks(fileNamesToProcess []string, nReduceTasks int) []*Task {
 	if fileNamesToProcess == nil {
-		return []Task{}
+		return []*Task{}
 	}
-	var tasks []Task
+	var tasks []*Task
 	for i, fileName := range fileNamesToProcess {
 		var task Task = newTask("map-"+strconv.Itoa(i), []string{fileName}, nReduceTasks, MAP)
-		tasks = append(tasks, task)
+		tasks = append(tasks, &task)
 	}
 	fmt.Printf("Created [%v] \"MAP\" tasks", len(fileNamesToProcess))
 	return tasks
@@ -49,7 +49,7 @@ func (receiver *TasksService) IsMapFinished() bool {
 		log.Fatal("IsMapFinished shows that task is empty")
 	}
 
-	var firstTask Task = receiver.tasks[0]
+	var firstTask Task = *receiver.tasks[0]
 	if firstTask.TaskType == REDUCE {
 		log.Fatal("IsMapFinished shows that task contains REDUCE task")
 	}
@@ -63,7 +63,7 @@ func (receiver *TasksService) GetTask() Task {
 
 	var now time.Time = time.Now()
 
-	var processingTimeOutedTask Task
+	var processingTimeOutedTask *Task
 	var processingTimeOutedTaskIndex int = -1
 
 	for i, task := range receiver.tasks {
@@ -72,8 +72,7 @@ func (receiver *TasksService) GetTask() Task {
 
 			task.State = PROCESSING
 			task.taskStartTime = &now
-			receiver.tasks[i] = task
-			return task
+			return *task
 
 		} else if taskState == PROCESSING && processingTimeOutedTaskIndex == -1 {
 
@@ -89,7 +88,7 @@ func (receiver *TasksService) GetTask() Task {
 	if processingTimeOutedTaskIndex != -1 {
 		processingTimeOutedTask.taskStartTime = &now
 		receiver.tasks[processingTimeOutedTaskIndex] = processingTimeOutedTask
-		return processingTimeOutedTask
+		return *processingTimeOutedTask
 	}
 
 	return idleTask()
@@ -107,25 +106,25 @@ func (receiver *TasksService) tryEndMapPhase() {
 	fmt.Printf("Started ending map phase\n")
 
 	receiver.doneTasks = 0
-	var reduceTasks []Task = createReduceTasks(receiver.tasks)
+	var reduceTasks []*Task = createReduceTasks(receiver.tasks)
 	fmt.Printf("Num reduce tasks [%v]", len(reduceTasks))
 	receiver.tasks = reduceTasks
 
 }
 
-func createReduceTasks(tasks []Task) []Task {
-	var reduceTasks []Task
+func createReduceTasks(tasks []*Task) []*Task {
+	var reduceTasks []*Task
 	var mapResultFileNamesPerReducer map[string][]string = getMapResultFileNamesPerReducer(tasks)
 
 	for key := range mapResultFileNamesPerReducer {
 		var reduceTask Task = createReduceTaskFromMapTask(key, mapResultFileNamesPerReducer[key], tasks[0].NReduceTasks)
-		reduceTasks = append(reduceTasks, reduceTask)
+		reduceTasks = append(reduceTasks, &reduceTask)
 	}
 
 	return reduceTasks
 }
 
-func getMapResultFileNamesPerReducer(tasks []Task) map[string][]string {
+func getMapResultFileNamesPerReducer(tasks []*Task) map[string][]string {
 	var mapResultFileNamesPerReducer map[string][]string = map[string][]string{}
 
 	for _, task := range tasks {
@@ -152,30 +151,19 @@ func (receiver *TasksService) UpdateMapTask(taskId string, mapFuncResultFileName
 	receiver.mutex.Lock()
 	defer receiver.mutex.Unlock()
 
-	for i, task := range receiver.tasks {
+	for _, task := range receiver.tasks {
 		if taskId == task.TaskId {
 
-			if task.State == DONE {
-				return
-			}
+			if task.State != DONE {
 
-			task.State = DONE
-			task.MapFuncResultFileNames = mapFuncResultFileNames
-			receiver.doneTasks += 1
-			receiver.tasks[i] = task
+				task.State = DONE
+				task.MapFuncResultFileNames = mapFuncResultFileNames
+				receiver.doneTasks += 1
 
-			if receiver.doneTasks == len(receiver.tasks) {
-				go receiver.tryEndMapPhase()
-			} else {
-
-				for _, t := range receiver.tasks {
-					if t.State != DONE {
-						return
-					}
+				if receiver.doneTasks == len(receiver.tasks) {
+					go receiver.tryEndMapPhase()
 				}
-				receiver.doneTasks = len(receiver.tasks)
 			}
-
 			return
 		}
 	}
@@ -186,7 +174,7 @@ func (receiver *TasksService) UpdateReduceTask(taskId string) {
 	receiver.mutex.Lock()
 	defer receiver.mutex.Unlock()
 
-	for i, task := range receiver.tasks {
+	for _, task := range receiver.tasks {
 		if taskId == task.TaskId {
 
 			if task.State == DONE {
@@ -195,7 +183,6 @@ func (receiver *TasksService) UpdateReduceTask(taskId string) {
 
 			task.State = DONE
 			receiver.doneTasks += 1
-			receiver.tasks[i] = task
 
 			return
 		}
@@ -212,7 +199,7 @@ func (receiver *TasksService) IsReduceTaskDone() bool {
 		log.Fatal("IsReduceTaskDone shows that task is empty")
 	}
 
-	var firstTask Task = receiver.tasks[0]
+	var firstTask Task = *receiver.tasks[0]
 
 	return firstTask.TaskType == REDUCE && receiver.doneTasks == len(receiver.tasks)
 }
