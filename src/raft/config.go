@@ -40,7 +40,7 @@ type config struct {
 	net       *labrpc.Network
 	n         int
 	rafts     []*Raft
-	applyErr  []string // from apply channel readers
+	applyErr  []string // from applyChanges channel readers
 	connected []bool   // whether each server is on the net
 	saved     []*Persister
 	endnames  [][]string            // the port file names each sends to
@@ -189,12 +189,12 @@ func (cfg *config) start1(i int) {
 				cfg.mu.Unlock()
 
 				if m.CommandIndex > 1 && prevok == false {
-					err_msg = fmt.Sprintf("server %v apply out of order %v", i, m.CommandIndex)
+					err_msg = fmt.Sprintf("server %v applyChanges out of order %v", i, m.CommandIndex)
 				}
 			}
 
 			if err_msg != "" {
-				log.Fatalf("apply error: %v\n", err_msg)
+				log.Fatalf("applyChanges error: %v\n", err_msg)
 				cfg.applyErr[i] = err_msg
 				// keep reading after error so that Raft doesn't block
 				// holding locks...
